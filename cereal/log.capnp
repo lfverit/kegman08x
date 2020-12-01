@@ -848,7 +848,6 @@ struct Plan {
     mpc2 @2;
     mpc3 @3;
     model @4;
-    curveSlowdown @5;
   }
 }
 
@@ -875,10 +874,6 @@ struct PathPlan {
   desire @17 :Desire;
   laneChangeState @18 :LaneChangeState;
   laneChangeDirection @19 :LaneChangeDirection;
-
-  steerRatio @20 :Float32;
-  steerRateCost @21 :Float32;
-  steerActuatorDelay @22 :Float32;
 
   enum Desire {
     none @0;

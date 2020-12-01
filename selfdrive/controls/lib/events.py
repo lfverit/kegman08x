@@ -165,7 +165,7 @@ class EngagementAlert(Alert):
     super().__init__("", "",
                      AlertStatus.normal, AlertSize.none,
                      Priority.MID, VisualAlert.none,
-                     audible_alert, .2, 0., 0.),
+                     audible_alert, 1.2, 0., 0.),
 
 class NormalPermanentAlert(Alert):
   def __init__(self, alert_text_1, alert_text_2):
@@ -717,7 +717,7 @@ EVENTS: Dict[int, Dict[str, Union[Alert, Callable[[Any, messaging.SubMaster, boo
       "openpilot Canceled",
       "No close lead car",
       AlertStatus.normal, AlertSize.mid,
-      Priority.HIGH, VisualAlert.none, AudibleAlert.chimeDisengage, .4, 2., 3.),
+      Priority.HIGH, VisualAlert.none, AudibleAlert.chimeDisengage, 1.4, 2., 3.),
     ET.NO_ENTRY : NoEntryAlert("No Close Lead Car"),
   },
 
@@ -726,7 +726,7 @@ EVENTS: Dict[int, Dict[str, Union[Alert, Callable[[Any, messaging.SubMaster, boo
       "openpilot Canceled",
       "Speed too low",
       AlertStatus.normal, AlertSize.mid,
-      Priority.HIGH, VisualAlert.none, AudibleAlert.chimeDisengage, .4, 2., 3.),
+      Priority.HIGH, VisualAlert.none, AudibleAlert.chimeDisengage, 1.4, 2., 3.),
   },
 
   EventName.speedTooHigh: {

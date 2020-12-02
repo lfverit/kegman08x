@@ -1,5 +1,6 @@
 import os
 import math
+from common.numpy_fast import interp
 from common.realtime import sec_since_boot, DT_MDL
 from selfdrive.swaglog import cloudlog
 from selfdrive.controls.lib.lateral_mpc import libmpc_py
@@ -17,7 +18,7 @@ LaneChangeDirection = log.PathPlan.LaneChangeDirection
 
 LOG_MPC = os.environ.get('LOG_MPC', True)
 
-LANE_CHANGE_SPEED_MIN = 30 * CV.MPH_TO_MS
+LANE_CHANGE_SPEED_MIN = 15 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
 
 DESIRES = {
@@ -92,7 +93,8 @@ class PathPlanner():
     self.lane_change_timer = 0.0
     self.lane_change_ll_prob = 1.0
     self.prev_one_blinker = False
-
+    self.sR_delay_counter = 0
+    self.v_ego_ed =0.0
 
       
   def setup_mpc(self):
@@ -129,7 +131,14 @@ class PathPlanner():
     VM.update_params(x, sr)
 
     curvature_factor = VM.curvature_factor(v_ego)
-    
+
+# add interpolated sR by GGamjang Niro
+    self.sR_delay_counter += 1
+    if self.sR_delay_counter % 100 == 0:
+      if self.v_ego_ed < v_ego:
+        VM.sR = interp(v_ego, [12, 35], [self.steerRatio + 5.5, self.steerRatio])
+      self.v_ego_ed = v_ego
+
     # Get steerRatio and steerRateCost from kegman.json every x seconds
     self.mpc_frame += 1
     if self.mpc_frame % 500 == 0:

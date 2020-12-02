@@ -2,6 +2,7 @@ from selfdrive.controls.lib.pid import PIController
 from selfdrive.controls.lib.drive_helpers import get_steer_max
 from cereal import car
 from cereal import log
+import common.steer_smoother as St_Smoother
 from selfdrive.kegman_conf import kegman_conf
 
 
@@ -14,6 +15,9 @@ class LatControlPID():
                             k_f=CP.lateralTuning.pid.kf, pos_limit=1.0, neg_limit=-1.0,
                             sat_limit=CP.steerLimitTimer)
     self.angle_steers_des = 0.
+
+    self.Mid_Smoother = St_Smoother.Steer_Mid_Smoother()
+
     self.mpc_frame = 0
 
   def reset(self):
@@ -48,7 +52,18 @@ class LatControlPID():
       pid_log.active = False
       self.pid.reset()
     else:
-      self.angle_steers_des = path_plan.angleSteers  # get from MPC/PathPlanner
+      if CS.vEgo < 7.0: # ristrict to 25km
+        self.angle_steers_des = self.Mid_Smoother.get_data( path_plan.angleSteers, 0.3)
+      elif CS.vEgo < 15.0: # ristrict to 54km
+        self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.45)
+      elif CS.vEgo < 20.0: # ristrict to 72km
+        self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.6)
+      elif CS.vEgo < 25.0: # ristrict to 90km
+        self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.8)
+      elif CS.vEgo < 35.0: # ristrict to 125km
+        self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.9)
+      else:
+        self.angle_steers_des = path_plan.angleSteers  # get from MPC/PathPlanner
 
       steers_max = get_steer_max(CP, CS.vEgo)
       self.pid.pos_limit = steers_max

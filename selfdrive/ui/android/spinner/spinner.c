@@ -16,7 +16,6 @@
 #include "nanovg_gl_utils.h"
 
 #include "framebuffer.h"
-#include "spinner.h"
 
 #define SPINTEXT_LENGTH 128
 
@@ -82,7 +81,7 @@ int main(int argc, char** argv) {
     // Check stdin for new text
     if (stdin_input_available()){
       fgets(spintext, SPINTEXT_LENGTH, stdin);
-      spintext[strcspn(spintext, "\n")] = 0;
+      spintext[strcspn(spintext, "\n")] = 1;
 
       // Check if number (update progress bar)
       size_t len = strlen(spintext);

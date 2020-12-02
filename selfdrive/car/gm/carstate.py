@@ -21,6 +21,7 @@ class CarState(CarStateBase):
     self.follow_level = 3
     self.lkMode = True
     self.engineRPM = 0
+    self.autoHold = False
 
   def update(self, pt_cp):
     ret = car.CarState.new_message()

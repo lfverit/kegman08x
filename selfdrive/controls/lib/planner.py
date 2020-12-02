@@ -63,7 +63,7 @@ def limit_accel_in_turns(v_ego, angle_steers, a_target, CP):
   """
 
   a_total_max = interp(v_ego, _A_TOTAL_MAX_BP, _A_TOTAL_MAX_V)
-  a_y = v_ego**2 * angle_steers * CV.DEG_TO_RAD / (CP.steerRatio * CP.wheelbase)
+  a_y = v_ego**2 * angle_steers * CV.DEG_TO_RAD / (CP.steerRatio * CP.wheelbase * 0.8)
   a_x_allowed = math.sqrt(max(a_total_max**2 - a_y**2, 0.))
 
   return [a_target[0], min(a_target[1], a_x_allowed)]
@@ -84,6 +84,8 @@ class Planner():
     self.a_acc = 0.0
     self.v_cruise = 0.0
     self.a_cruise = 0.0
+    self.v_model = 0.0
+    self.a_model = 0.0
 
     self.longitudinalPlanSource = 'cruise'
     self.fcw_checker = FCWChecker()
@@ -115,6 +117,9 @@ class Planner():
       elif slowest == 'cruise':
         self.v_acc = self.v_cruise
         self.a_acc = self.a_cruise
+      elif slowest == 'model':
+        self.v_acc = self.v_model
+        self.a_acc = self.a_model
 
     self.v_acc_future = min([self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint])
 
@@ -135,6 +140,26 @@ class Planner():
 
     enabled = (long_control_state == LongCtrlState.pid) or (long_control_state == LongCtrlState.stopping)
     following = lead_1.status and lead_1.dRel < 45.0 and lead_1.vLeadK > v_ego and lead_1.aLeadK > 0.0
+
+    if len(sm['model'].path.poly):
+      path = list(sm['model'].path.poly)
+
+      # Curvature of polynomial https://en.wikipedia.org/wiki/Curvature#Curvature_of_the_graph_of_a_function
+      # y = a x^3 + b x^2 + c x + d, y' = 3 a x^2 + 2 b x + c, y'' = 6 a x + 2 b
+      # k = y'' / (1 + y'^2)^1.5
+      # TODO: compute max speed without using a list of points and without numpy
+      y_p = 3 * path[0] * self.path_x**2 + 2 * path[1] * self.path_x + path[2]
+      y_pp = 6 * path[0] * self.path_x + 2 * path[1]
+      curv = y_pp / (1. + y_p**2)**1.5
+      a_y_max = 2.975 - v_ego * 0.0375  # ~1.85 @ 75mph, ~2.6 @ 25mph
+      v_curvature = np.sqrt(a_y_max / np.clip(np.abs(curv), 1e-4, None))
+      model_speed = np.min(v_curvature)
+      model_speed = max(20.0 * CV.MPH_TO_MS, model_speed) # Don't slow down below 20mph
+
+      curvature = np.mean(curv[1:4])
+    else:
+      model_speed = 255
+      curvature = 0.
 
     if self.mpc_frame % 1000 == 0:
       self.kegman = kegman_conf()
@@ -228,6 +253,9 @@ class Planner():
 
     # Send out fcw
     plan_send.plan.fcw = fcw
+
+    plan_send.plan.pCurvature = float(curvature)
+    plan_send.plan.curvMaxSpeed = float(model_speed)
 
     pm.send('plan', plan_send)
 

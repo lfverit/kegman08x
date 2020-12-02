@@ -502,6 +502,8 @@ class Controls:
     controlsState.mapValid = self.sm['plan'].mapValid
     controlsState.forceDecel = bool(force_decel)
     controlsState.canErrorCounter = self.can_error_counter
+    controlsState.pCurvature = self.sm['plan'].pCurvature
+    controlsState.curvMaxSpeed = self.sm['plan'].curvMaxSpeed
 
     if self.CP.lateralTuning.which() == 'pid':
       controlsState.lateralControlState.pidState = lac_log

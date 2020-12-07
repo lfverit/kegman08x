@@ -21,6 +21,7 @@ class CarInterfaceBase():
     self.VM = VehicleModel(CP)
 
     self.frame = 0
+    self.paddleFrame = 0
     self.low_speed_alert = False
 
     if CarState is not None:
@@ -28,6 +29,7 @@ class CarInterfaceBase():
       self.cp = self.CS.get_can_parser(CP)
       self.cp_cam = self.CS.get_cam_can_parser(CP)
       self.cp_body = self.CS.get_body_can_parser(CP)
+      self.cp_chassis = self.CS.get_chassis_can_parser(CP)
 
     self.CC = None
     if CarController is not None:
@@ -55,7 +57,7 @@ class CarInterfaceBase():
     # standard ALC params
     ret.steerControlType = car.CarParams.SteerControlType.torque
     ret.steerMaxBP = [0.]
-    ret.steerMaxV = [1.]
+    ret.steerMaxV = [2.5]
     ret.minSteerSpeed = 0.
 
     # stock ACC by default
@@ -186,4 +188,8 @@ class CarStateBase:
 
   @staticmethod
   def get_body_can_parser(CP):
+    return None
+
+  @staticmethod
+  def get_chassis_can_parser(CP):
     return None

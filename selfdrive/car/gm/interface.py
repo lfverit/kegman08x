@@ -82,14 +82,20 @@ class CarInterface(CarInterfaceBase):
     ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.2], [0.00]]
     ret.lateralTuning.pid.kf = 0.00004   # full torque for 20 deg at 80mph means 0.00007818594
     ret.steerRateCost = 1.0
-    ret.steerActuatorDelay = 0.08  # Default delay, not measured yet
+    ret.steerActuatorDelay = 0.1  # Default delay, not measured yet
 
     if candidate == CAR.VOLT:
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
       ret.minEnableSpeed = -1
       ret.mass = 1607. + STD_CARGO_KG
+      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.2], [0.00]]
+      ret.lateralTuning.pid.kdBP = [0.]
+      ret.lateralTuning.pid.kdV = [0.08]  #corolla from shane fork : 0.725
+      ret.lateralTuning.pid.kf = 0.000061181594   # this number means 50kph(0.0000061082 base)
+      tire_stiffness_factor = 0.5  # not optimized yet
       ret.wheelbase = 2.69
-      ret.steerRatio = 15.7
+      ret.steerRatio = 15.0
       ret.steerRatioRear = 0.
       ret.centerToFront = ret.wheelbase * 0.4  # wild guess
 
@@ -152,7 +158,7 @@ class CarInterface(CarInterfaceBase):
     ret.stoppingControl = True
     ret.startAccel = 0.8
 
-    ret.steerLimitTimer = 0.4
+    ret.steerLimitTimer = 2.4
     ret.radarTimeStep = 0.0667  # GM radar runs at 15Hz instead of standard 20Hz
 
     return ret
@@ -160,17 +166,18 @@ class CarInterface(CarInterfaceBase):
   # returns a car.CarState
   def update(self, c, can_strings):
     self.cp.update_strings(can_strings)
+    self.cp_chassis.update_strings(can_strings)
 
-    ret = self.CS.update(self.cp)
+    ret = self.CS.update(self.cp, self.cp_chassis)
 
     cruiseEnabled = self.CS.pcm_acc_status != AccState.OFF
     ret.cruiseState.enabled = cruiseEnabled
 
     ret.readdistancelines = self.CS.follow_level
-    
+
     ret.canValid = self.cp.can_valid
     ret.steeringRateLimited = self.CC.steer_rate_limited if self.CC is not None else False
-    
+
     ret.engineRPM = self.CS.engineRPM
 
     buttonEvents = []
@@ -198,11 +205,14 @@ class CarInterface(CarInterfaceBase):
       buttonEvents.append(be)
 
     ret.buttonEvents = buttonEvents
-    
-    if self.CS.lka_button and self.CS.lka_button != self.CS.prev_lka_button:
-      #self.CS.lkMode = not self.CS.lkMode
-      self.CS.autoHold = not self.CS.autoHold  #added 
-      print("self.CS.autoHold = ", self.CS.autoHold)
+
+    if cruiseEnabled and self.CS.lka_button and self.CS.lka_button != self.CS.prev_lka_button:
+      self.CS.lkMode = not self.CS.lkMode
+
+    if not self.CS.autoHoldActive:
+      self.CS.autoHoldCanceled = True
+    elif self.CS.autoHoldActive:
+      self.CS.autoHoldCanceled = False
 
     if self.CS.distance_button and self.CS.distance_button != self.CS.prev_distance_button:
        self.CS.follow_level -= 1
@@ -215,10 +225,14 @@ class CarInterface(CarInterfaceBase):
       events.add(EventName.belowEngageSpeed)
     if self.CS.park_brake:
       events.add(EventName.parkBrake)
-    #if self.CS.pcm_acc_status == AccState.FAULTED:
-    #  events.add(EventName.controlsFailed)
-    #if ret.vEgo < self.CP.minSteerSpeed:
-    #  events.add(car.CarEvent.EventName.belowSteerSpeed)
+#    if self.CS.pcm_acc_status == AccState.FAULTED:
+#      events.add(EventName.controlsFailed)
+#    if ret.vEgo < self.CP.minSteerSpeed:
+#      events.add(car.CarEvent.EventName.belowSteerSpeed)
+    if self.CS.autoHoldActivated:
+      events.add(car.CarEvent.EventName.autoHoldActivated)
+    if self.CS.autoHoldCanceled:
+      events.add(car.CarEvent.EventName.autoHoldCanceled)
 
     # handle button presses
     for b in ret.buttonEvents:
@@ -244,10 +258,10 @@ class CarInterface(CarInterfaceBase):
       events.add(EventName.parkBrake)
     if ret.cruiseState.standstill:
       events.add(EventName.resumeRequired)
-    #if self.CS.pcm_acc_status == AccState.FAULTED:
-    #  events.add(EventName.controlsFailed)
-    #if ret.vEgo < self.CP.minSteerSpeed:
-    #  events.add(car.CarEvent.EventName.belowSteerSpeed)
+#    if self.CS.pcm_acc_status == AccState.FAULTED:
+#      events.add(EventName.controlsFailed)
+#    if ret.vEgo < self.CP.minSteerSpeed:
+#      events.add(car.CarEvent.EventName.belowSteerSpeed)
 
     # handle button presses
     for b in ret.buttonEvents:
@@ -280,4 +294,22 @@ class CarInterface(CarInterfaceBase):
                                c.hudControl.leadVisible, c.hudControl.visualAlert)
 
     self.frame += 1
+
+    # Release Auto Hold and creep smoothly when regenpaddle pressed
+    if self.CS.regenPaddlePressed and self.CS.autoHold:
+      if self.CS.out.vEgo < 0.01:
+        self.CS.autoHoldActive = False
+        self.CS.autoHoldCanceled = True
+      elif self.CS.out.vEgo > 0.02:
+        self.CS.autoHoldCanceled = False
+
+    if self.CS.autoHold and not self.CS.autoHoldActive and not self.CS.regenPaddlePressed:
+      if self.CS.out.vEgo > 0.02:
+        self.CS.autoHoldCanceled = False
+        self.CS.autoHoldActive = True
+
+      elif self.CS.out.vEgo < 0.01 and self.CS.out.brakePressed:
+        self.CS.autoHoldActive = True
+        self.CS.autoHoldCanceled = False
+
     return can_sends

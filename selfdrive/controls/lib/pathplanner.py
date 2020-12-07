@@ -77,6 +77,11 @@ class PathPlanner():
       self.steerRateCost = CP.steerRateCost
     else:
       self.steerRateCost = float(kegman.conf['steerRateCost'])
+
+    if kegman.conf['steerActuatorDelay'] == "-1":
+      self.steerActuatorDelay = CP.steerActuatorDelay
+    else:
+      self.steerActuatorDelay = float(kegman.conf['steerActuatorDelay'])
       
     self.sR = [float(kegman.conf['steerRatio']), (float(kegman.conf['steerRatio']) + float(kegman.conf['sR_boost']))]
     self.sRBP = [float(kegman.conf['sR_BP0']), float(kegman.conf['sR_BP1'])]
@@ -132,13 +137,14 @@ class PathPlanner():
 
     curvature_factor = VM.curvature_factor(v_ego)
 
-# add interpolated sR by GGamjang Niro
+# add interpolating sR by GGamjang Niro
     self.sR_delay_counter += 1
     if self.sR_delay_counter % 100 == 0:
       if self.v_ego_ed < v_ego:
-        VM.sR = interp(v_ego, [12, 35], [self.steerRatio + 5.5, self.steerRatio])
+        VM.sR = interp(v_ego, [12, 35], [self.steerRatio + 6.3, self.steerRatio])
       self.v_ego_ed = v_ego
 
+    
     # Get steerRatio and steerRateCost from kegman.json every x seconds
     self.mpc_frame += 1
     if self.mpc_frame % 500 == 0:
@@ -149,6 +155,8 @@ class PathPlanner():
         if self.steerRateCost != self.steerRateCost_prev:
           self.setup_mpc()
           self.steerRateCost_prev = self.steerRateCost
+
+        self.steerActuatorDelay = float(kegman.conf['steerActuatorDelay'])
           
         self.sR = [float(kegman.conf['steerRatio']), (float(kegman.conf['steerRatio']) + float(kegman.conf['sR_boost']))]
         self.sRBP = [float(kegman.conf['sR_BP0']), float(kegman.conf['sR_BP1'])]
@@ -175,21 +183,40 @@ class PathPlanner():
     self.LP.parse_model(sm['model'])
 
     # Lane change logic
+    lane_change_direction = LaneChangeDirection.none
     one_blinker = sm['carState'].leftBlinker != sm['carState'].rightBlinker
     below_lane_change_speed = v_ego < self.alc_min_speed
 
-    if sm['carState'].leftBlinker:
-      self.lane_change_direction = LaneChangeDirection.left
-    elif sm['carState'].rightBlinker:
-      self.lane_change_direction = LaneChangeDirection.right
-
-    if (not active) or (self.lane_change_timer > LANE_CHANGE_TIME_MAX) or (not self.lane_change_enabled):
+    if not active or self.lane_change_timer > 10.0:
       self.lane_change_state = LaneChangeState.off
-      self.lane_change_direction = LaneChangeDirection.none
-    else:
-      torque_applied = sm['carState'].steeringPressed and \
-                       ((sm['carState'].steeringTorque > 0 and self.lane_change_direction == LaneChangeDirection.left) or
-                        (sm['carState'].steeringTorque < 0 and self.lane_change_direction == LaneChangeDirection.right))
+      self.pre_lane_change_timer = 0.0
+
+    else:	  
+      if sm['carState'].leftBlinker:
+        self.lane_change_direction = LaneChangeDirection.left
+        self.pre_lane_change_timer += DT_MDL
+      elif sm['carState'].rightBlinker:
+        self.lane_change_direction = LaneChangeDirection.right
+        self.pre_lane_change_timer += DT_MDL
+
+      else:
+        self.pre_lane_change_timer = 0.0
+
+      if self.alc_nudge_less and self.pre_lane_change_timer > self.alc_timer:
+        torque_applied = True
+
+      else:
+        if lane_change_direction == LaneChangeDirection.left:
+          torque_applied = sm['carState'].steeringTorque > 0 and sm['carState'].steeringPressed
+        else:
+          torque_applied = sm['carState'].steeringTorque < 0 and sm['carState'].steeringPressed
+#    if (not active) or (self.lane_change_timer > LANE_CHANGE_TIME_MAX) or (not self.lane_change_enabled):
+#      self.lane_change_state = LaneChangeState.off
+#      self.lane_change_direction = LaneChangeDirection.none
+#    else:
+#      torque_applied = sm['carState'].steeringPressed and \
+#                       ((sm['carState'].steeringTorque > 0 and self.lane_change_direction == LaneChangeDirection.left) or
+#                        (sm['carState'].steeringTorque < 0 and self.lane_change_direction == LaneChangeDirection.right))
 
       blindspot_detected = ((sm['carState'].leftBlindspot and self.lane_change_direction == LaneChangeDirection.left) or
                             (sm['carState'].rightBlindspot and self.lane_change_direction == LaneChangeDirection.right))
@@ -303,7 +330,7 @@ class PathPlanner():
 
     plan_send.pathPlan.angleSteers = float(self.angle_steers_des_mpc)
     plan_send.pathPlan.rateSteers = float(rate_desired)
-    plan_send.pathPlan.angleOffset = float(sm['liveParameters'].angleOffsetAverage)
+    plan_send.pathPlan.angleOffset = float(sm['liveParameters'].angleOffset)
     plan_send.pathPlan.mpcSolutionValid = bool(plan_solution_valid)
     plan_send.pathPlan.paramsValid = bool(sm['liveParameters'].valid)
 

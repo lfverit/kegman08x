@@ -1,24 +1,27 @@
-from selfdrive.controls.lib.pid import PIController
+from selfdrive.controls.lib.pid import LatPIDController
 from selfdrive.controls.lib.drive_helpers import get_steer_max
 from cereal import car
 from cereal import log
 import common.steer_smoother as St_Smoother
 from selfdrive.kegman_conf import kegman_conf
+#from selfdrive.ntune import nTune
 
 
 class LatControlPID():
   def __init__(self, CP):
     self.kegman = kegman_conf(CP)
     self.deadzone = float(self.kegman.conf['deadzone'])
-    self.pid = PIController((CP.lateralTuning.pid.kpBP, CP.lateralTuning.pid.kpV),
-                            (CP.lateralTuning.pid.kiBP, CP.lateralTuning.pid.kiV),
-                            k_f=CP.lateralTuning.pid.kf, pos_limit=1.0, neg_limit=-1.0,
-                            sat_limit=CP.steerLimitTimer)
+    self.pid = LatPIDController((CP.lateralTuning.pid.kpBP, CP.lateralTuning.pid.kpV),
+                                (CP.lateralTuning.pid.kiBP, CP.lateralTuning.pid.kiV),
+                                (CP.lateralTuning.pid.kdBP, CP.lateralTuning.pid.kdV),
+                                k_f=CP.lateralTuning.pid.kf, pos_limit=1.0, sat_limit=CP.steerLimitTimer)
     self.angle_steers_des = 0.
+    self.mpc_frame = 0
 
     self.Mid_Smoother = St_Smoother.Steer_Mid_Smoother()
-
-    self.mpc_frame = 0
+#
+#    self.reset()
+#    self.tune = nTune(CP, self)
 
   def reset(self):
     self.pid.reset()
@@ -32,16 +35,18 @@ class LatControlPID():
         self.steerKpV = [float(self.kegman.conf['Kp'])]
         self.steerKiV = [float(self.kegman.conf['Ki'])]
         self.steerKf = float(self.kegman.conf['Kf'])
-        self.pid = PIController((CP.lateralTuning.pid.kpBP, self.steerKpV),
-                            (CP.lateralTuning.pid.kiBP, self.steerKiV),
-                            k_f=self.steerKf, pos_limit=1.0)
+        self.steerLimitTimer = float(self.kegman.conf['steerLimitTimer'])
+        self.pid = LatPIDController((CP.lateralTuning.pid.kpBP, self.steerKpV),
+                                    (CP.lateralTuning.pid.kiBP, self.steerKiV),
+                                    (CP.lateralTuning.pid.kdBP, CP.lateralTuning.pid.kdV),
+                                    k_f=self.steerKf, pos_limit=1.0, sat_limit=self.steerLimitTimer)
         self.deadzone = float(self.kegman.conf['deadzone'])
         
       self.mpc_frame = 0    
 
-
   def update(self, active, CS, CP, path_plan):
     self.live_tune(CP)
+    #self.tune.check()
  
     pid_log = log.ControlsState.LateralPIDState.new_message()
     pid_log.steerAngle = float(CS.steeringAngle)
@@ -53,9 +58,9 @@ class LatControlPID():
       self.pid.reset()
     else:
       if CS.vEgo < 7.0: # ristrict to 25km
-        self.angle_steers_des = self.Mid_Smoother.get_data( path_plan.angleSteers, 0.3)
+        self.angle_steers_des = self.Mid_Smoother.get_data( path_plan.angleSteers, 0.2)
       elif CS.vEgo < 15.0: # ristrict to 54km
-        self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.45)
+        self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.4)
       elif CS.vEgo < 20.0: # ristrict to 72km
         self.angle_steers_des = self.Mid_Smoother.get_data(path_plan.angleSteers, 0.6)
       elif CS.vEgo < 25.0: # ristrict to 90km

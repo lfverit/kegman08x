@@ -102,6 +102,8 @@ struct CarEvent @0x9b1657f34caf3ad3 {
     cameraMalfunction @92;
     manualSteeringRequired @94;
     manualSteeringRequiredBlinkersOn @95;
+    autoHoldActivated @96;
+    autoHoldCanceled @97;
 
     gasUnavailableDEPRECATED @3;
     dataNeededDEPRECATED @16;
@@ -192,6 +194,10 @@ struct CarState {
   # blindspot sensors
   leftBlindspot @33 :Bool; # Is there something blocking the left lane change
   rightBlindspot @34 :Bool; # Is there something blocking the right lane change
+
+  # autoHold Active Information
+  autoHoldActivated @42 :Bool;
+  autoHoldCanceled @43 :Bool;
 
   struct WheelSpeeds {
     # optional wheel speeds
@@ -334,6 +340,8 @@ struct CarControl {
       seatbeltUnbuckled @5;
       speedTooHigh @6;
       ldw @7;
+      autoHoldActivated @8;
+      autoHoldCanceled @9;
     }
 
     enum AudibleAlert {
@@ -348,6 +356,8 @@ struct CarControl {
       chimeWarningRepeat @6;
       chimePrompt @7;
       chimeWarning2Repeat @8;
+      chimeAutoholdon @9;
+      chimeAutoholdoff @10;
     }
   }
 }
@@ -430,7 +440,9 @@ struct CarParams {
     kpV @1 :List(Float32);
     kiBP @2 :List(Float32);
     kiV @3 :List(Float32);
-    kf @4 :Float32;
+    kdBP @4 :List(Float32);
+    kdV @5 :List(Float32);
+    kf @6 :Float32;
   }
 
   struct LongitudinalPIDTuning {

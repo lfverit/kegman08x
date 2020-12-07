@@ -87,6 +87,8 @@ void stop_capture() {
   char videos_dir[50] = "/sdcard/videos";
 
   if (captureState == CAPTURE_STATE_CAPTURING) {
+    system("find /data/media/0/videos -mtime +2 -delete");
+    system("find /data/media/0/realdata -mtime +2 -delete");
     system("killall -SIGINT screenrecord");
     captureState = CAPTURE_STATE_NOT_CAPTURING;
     elapsed_time = get_time() - start_time;

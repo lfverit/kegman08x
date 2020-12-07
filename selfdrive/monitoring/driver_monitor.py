@@ -17,11 +17,11 @@ EventName = car.CarEvent.EventName
 #  We recommend that you do not change these numbers from the defaults.
 # ******************************************************************************************
 
-_AWARENESS_TIME = 18000.  # passive wheel touch total timeout
+_AWARENESS_TIME = 35.  # passive wheel touch total timeout
 #_AWARENESS_TIME = min(int(kegman.conf['wheelTouchSeconds']), 600)    # x minutes limit without user touching steering wheels make the car enter a terminal status
 _AWARENESS_PRE_TIME_TILL_TERMINAL = 12.
 _AWARENESS_PROMPT_TIME_TILL_TERMINAL = 6.
-_DISTRACTED_TIME = 7200.
+_DISTRACTED_TIME = 72.
 _DISTRACTED_PRE_TIME_TILL_TERMINAL = 8.
 _DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 6.
 
@@ -40,7 +40,7 @@ _PITCH_POS_ALLOWANCE = 0.12  # rad, to not be too sensitive on positive pitch
 _PITCH_NATURAL_OFFSET = 0.02  # people don't seem to look straight when they drive relaxed, rather a bit up
 _YAW_NATURAL_OFFSET = 0.08  # people don't seem to look straight when they drive relaxed, rather a bit to the right (center of car)
 
-_HI_STD_TIMEOUT = 18000
+_HI_STD_TIMEOUT = 5
 _HI_STD_FALLBACK_TIME = 10  # fall back to wheel touch if model is uncertain for a long time
 _DISTRACTED_FILTER_TS = 0.25  # 0.6Hz
 
